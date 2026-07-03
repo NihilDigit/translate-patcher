@@ -39,13 +39,16 @@ resources/app.asar.YYMMDD-HHMMSS.bak
 
 ## Install
 
-After the first release is published:
-
 ```bash
 curl -fsSL https://raw.githubusercontent.com/NihilDigit/translate-patcher/main/install.sh | bash
 ```
 
-The installer downloads the latest GitHub Release artifact for the current platform, verifies checksums, and installs `translate-patcher` to `~/.local/bin`.
+The installer downloads the latest GitHub Release artifact for the current Linux platform, verifies checksums, and installs `translate-patcher` to `~/.local/bin`.
+
+Supported installer targets:
+
+- `x86_64-unknown-linux-musl`
+- `aarch64-unknown-linux-musl`
 
 ## Build
 
