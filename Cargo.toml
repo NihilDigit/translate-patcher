@@ -1,0 +1,22 @@
+[workspace]
+members = [
+    "crates/translate-patcher-core",
+    "crates/translate-patcher-tui",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.0.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/NihilDigit/translate-patcher"
+homepage = "https://github.com/NihilDigit/translate-patcher"
+readme = "README.md"
+rust-version = "1.80"
+
+[workspace.dependencies]
+anyhow = "1.0"
+crossterm = "0.28"
+ratatui = "0.29"
+translate-patcher-core = { path = "crates/translate-patcher-core" }
+
