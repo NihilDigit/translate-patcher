@@ -6,15 +6,36 @@ The first supported target is MTool-style JSON applied to TyranoScript games pac
 
 ## Status
 
-This repository is in early development. The v0.1 scope is intentionally narrow:
+This repository is in early development. The current MVP can:
 
-- Ratatui-based TUI
-- TyranoScript in `resources/app.asar`
-- MTool-style JSON dictionaries
-- in-place patching with a timestamped `.bak`
-- restore from backup
+- scan the launch folder for `resources/app.asar` and `*.json`
+- let the user choose specific ASAR and JSON files inside the launch folder's parent
+- preview Tyrano scenario count and estimated translation matches
+- create a timestamped `.bak`
+- patch `data/scenario/**/*.ks` inside the ASAR
+- write `translate-patcher-report.txt`
 
 Image text, video subtitles, Kirikiri, Ren'Py, Unity, and arbitrary binary formats are out of scope for v0.1.
+
+## Usage
+
+Start the app from a game folder:
+
+```bash
+translate-patcher
+```
+
+The TUI shows detected files and asks for confirmation before modifying anything. By default it uses a conservative TyranoScript strategy:
+
+- replace plain scenario text
+- replace `#character name` lines
+- keep Tyrano tags and resource paths intact
+
+The patch is written in place after a backup is created:
+
+```text
+resources/app.asar.YYMMDD-HHMMSS.bak
+```
 
 ## Install
 
@@ -38,6 +59,14 @@ Run the TUI:
 cargo run -p translate-patcher
 ```
 
+Quality checks:
+
+```bash
+cargo fmt --check
+cargo clippy -- -D warnings
+cargo test
+```
+
 ## Release Versioning
 
 `translate-patcher` uses CalVer tags:
@@ -52,4 +81,3 @@ Release binaries are built by GitHub Actions from manually pushed tags.
 ## License
 
 GPL-3.0-or-later.
-

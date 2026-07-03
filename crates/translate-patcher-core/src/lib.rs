@@ -1,3 +1,9 @@
+pub mod asar;
+pub mod mtool;
+pub mod patch;
+pub mod scan;
+pub mod tyrano;
+
 pub const APP_NAME: &str = "translate-patcher";
 pub const APP_DESCRIPTION: &str =
     "Embed external translation dictionaries into visual novel game resources.";
