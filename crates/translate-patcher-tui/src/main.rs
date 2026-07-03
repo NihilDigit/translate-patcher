@@ -17,7 +17,7 @@ use ratatui::{
     Frame, Terminal,
 };
 use translate_patcher_core::{
-    patch::{apply_patch, preview_patch, PatchPreview, PatchReport},
+    patch::{apply_patch, preview_patch, restore_backup, PatchPreview, PatchReport},
     scan::{scan_from, ScanResult},
     APP_DESCRIPTION, APP_NAME,
 };
@@ -65,6 +65,7 @@ struct App {
     selected_action: usize,
     picker: Option<FilePicker>,
     error: Option<String>,
+    status: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -73,6 +74,8 @@ enum Screen {
     Confirm,
     Picker,
     Done,
+    ConfirmRestore,
+    ConfirmDeleteBackup,
     Error,
 }
 
@@ -110,6 +113,7 @@ impl App {
             selected_action: 0,
             picker: None,
             error: None,
+            status: None,
         };
         app.refresh_preview();
         app
@@ -121,6 +125,8 @@ impl App {
             Screen::Confirm => self.handle_confirm_key(code),
             Screen::Picker => self.handle_picker_key(code),
             Screen::Done => self.handle_done_key(code),
+            Screen::ConfirmRestore => self.handle_confirm_restore_key(code),
+            Screen::ConfirmDeleteBackup => self.handle_confirm_delete_key(code),
             Screen::Error => self.handle_error_key(code),
         }
     }
@@ -208,7 +214,72 @@ impl App {
     }
 
     fn handle_done_key(&mut self, code: KeyCode) -> bool {
-        matches!(code, KeyCode::Char('q') | KeyCode::Esc | KeyCode::Enter)
+        match code {
+            KeyCode::Char('q') | KeyCode::Esc => return true,
+            KeyCode::Left | KeyCode::Char('h') => {
+                self.selected_action = self.selected_action.saturating_sub(1);
+            }
+            KeyCode::Right | KeyCode::Char('l') | KeyCode::Tab => {
+                self.selected_action = (self.selected_action + 1).min(2);
+            }
+            KeyCode::Enter => match self.selected_action {
+                0 => return true,
+                1 => self.screen = Screen::ConfirmRestore,
+                2 => self.screen = Screen::ConfirmDeleteBackup,
+                _ => {}
+            },
+            _ => {}
+        }
+        false
+    }
+
+    fn handle_confirm_restore_key(&mut self, code: KeyCode) -> bool {
+        match code {
+            KeyCode::Char('q') => return true,
+            KeyCode::Esc | KeyCode::Char('b') => self.screen = Screen::Done,
+            KeyCode::Enter => {
+                if let Some(report) = &self.report {
+                    match restore_backup(&report.asar_path, &report.backup_path) {
+                        Ok(()) => {
+                            self.status = Some("Backup restored.".to_string());
+                            self.screen = Screen::Done;
+                        }
+                        Err(err) => {
+                            self.error = Some(format!("{err:#}"));
+                            self.screen = Screen::Error;
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+        false
+    }
+
+    fn handle_confirm_delete_key(&mut self, code: KeyCode) -> bool {
+        match code {
+            KeyCode::Char('q') => return true,
+            KeyCode::Esc | KeyCode::Char('b') => self.screen = Screen::Done,
+            KeyCode::Enter => {
+                if let Some(report) = &self.report {
+                    match fs::remove_file(&report.backup_path) {
+                        Ok(()) => {
+                            self.status = Some("Backup deleted.".to_string());
+                            self.screen = Screen::Done;
+                        }
+                        Err(err) => {
+                            self.error = Some(format!(
+                                "failed to delete {}: {err}",
+                                report.backup_path.display()
+                            ));
+                            self.screen = Screen::Error;
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+        false
     }
 
     fn handle_error_key(&mut self, code: KeyCode) -> bool {
@@ -269,6 +340,8 @@ impl App {
             Screen::Confirm => self.render_confirm(frame, layout[1]),
             Screen::Picker => self.render_picker(frame, layout[1]),
             Screen::Done => self.render_done(frame, layout[1]),
+            Screen::ConfirmRestore => self.render_confirm_restore(frame, layout[1]),
+            Screen::ConfirmDeleteBackup => self.render_confirm_delete(frame, layout[1]),
             Screen::Error => self.render_error(frame, layout[1]),
         }
         render_footer(frame, layout[2], self.screen);
@@ -410,6 +483,8 @@ impl App {
         let lines = vec![
             Line::from("Game patched successfully."),
             Line::from(""),
+            Line::from(self.status.clone().unwrap_or_default()),
+            Line::from(""),
             Line::from(format!("Modified files       {}", report.modified_files)),
             Line::from(format!("Applied entries      {}", report.applied_entries)),
             Line::from(format!("Unused entries       {}", report.unused_entries)),
@@ -419,8 +494,44 @@ impl App {
             Line::from(""),
             Line::from("Report saved at:"),
             Line::from(format!("  {}", report.report_path.display())),
+            Line::from(""),
+            action_line(
+                &["Quit", "Restore backup", "Delete backup"],
+                self.selected_action,
+            ),
         ];
         frame.render_widget(panel(lines, "Patch complete"), area);
+    }
+
+    fn render_confirm_restore(&self, frame: &mut Frame, area: Rect) {
+        let Some(report) = &self.report else {
+            return;
+        };
+        let lines = vec![
+            Line::from("Restore this backup over the patched ASAR?"),
+            Line::from(""),
+            Line::from(format!("ASAR    {}", report.asar_path.display())),
+            Line::from(format!("Backup  {}", report.backup_path.display())),
+            Line::from(""),
+            Line::from("Press Enter to restore, or Esc to cancel."),
+        ];
+        frame.render_widget(panel(lines, "Restore backup"), area);
+    }
+
+    fn render_confirm_delete(&self, frame: &mut Frame, area: Rect) {
+        let Some(report) = &self.report else {
+            return;
+        };
+        let lines = vec![
+            Line::from("Delete this backup file?"),
+            Line::from(""),
+            Line::from(format!("  {}", report.backup_path.display())),
+            Line::from(""),
+            Line::from("This cannot be undone by translate-patcher."),
+            Line::from(""),
+            Line::from("Press Enter to delete, or Esc to cancel."),
+        ];
+        frame.render_widget(panel(lines, "Delete backup"), area);
     }
 
     fn render_error(&self, frame: &mut Frame, area: Rect) {
@@ -556,7 +667,9 @@ fn render_footer(frame: &mut Frame, area: Rect, screen: Screen) {
         Screen::Select => "Left/Right select    Enter choose    q quit",
         Screen::Confirm => "Enter start patch    Esc back    q quit",
         Screen::Picker => "Up/Down move    Enter open/select    Backspace up    Esc cancel",
-        Screen::Done => "Enter quit",
+        Screen::Done => "Left/Right select    Enter choose    q quit",
+        Screen::ConfirmRestore => "Enter restore    Esc cancel    q quit",
+        Screen::ConfirmDeleteBackup => "Enter delete    Esc cancel    q quit",
         Screen::Error => "Enter back    q quit",
     };
     let footer = Paragraph::new(text)
