@@ -14,10 +14,11 @@ case "$os:$arch" in
 esac
 
 api="https://api.github.com/repos/$repo/releases/latest"
-tag="$(curl -fsSL "$api" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1)"
+tag="$(curl -fsSL "$api" 2>/dev/null | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1 || true)"
 
 if [ -z "$tag" ]; then
-  echo "could not find latest release for $repo" >&2
+  echo "could not find a published release for $repo" >&2
+  echo "install.sh works after a GitHub Release has been created from a tag" >&2
   exit 1
 fi
 
@@ -37,4 +38,7 @@ tar -xzf "$asset"
 install -m 0755 translate-patcher "$install_dir/translate-patcher"
 
 echo "installed translate-patcher $tag to $install_dir/translate-patcher"
-
+case ":$PATH:" in
+  *":$install_dir:"*) ;;
+  *) echo "note: add $install_dir to PATH to run translate-patcher directly" ;;
+esac

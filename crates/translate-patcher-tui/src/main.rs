@@ -23,6 +23,10 @@ use translate_patcher_core::{
 };
 
 fn main() -> Result<()> {
+    if handle_args() {
+        return Ok(());
+    }
+
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
@@ -36,6 +40,33 @@ fn main() -> Result<()> {
     terminal.show_cursor()?;
 
     result
+}
+
+fn handle_args() -> bool {
+    let mut args = std::env::args().skip(1);
+    match args.next().as_deref() {
+        Some("--help") | Some("-h") => {
+            println!("{APP_NAME} {}", env!("CARGO_PKG_VERSION"));
+            println!();
+            println!("{APP_DESCRIPTION}");
+            println!();
+            println!("Usage:");
+            println!("  translate-patcher");
+            println!("  translate-patcher --help");
+            println!("  translate-patcher --version");
+            true
+        }
+        Some("--version") | Some("-V") => {
+            println!("{APP_NAME} {}", env!("CARGO_PKG_VERSION"));
+            true
+        }
+        Some(arg) => {
+            eprintln!("unknown argument: {arg}");
+            eprintln!("run `translate-patcher --help` for usage");
+            true
+        }
+        None => false,
+    }
 }
 
 fn run(terminal: &mut Terminal<ratatui::backend::CrosstermBackend<io::Stdout>>) -> Result<()> {

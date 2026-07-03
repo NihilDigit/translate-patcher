@@ -679,7 +679,7 @@ dependencies = [
 
 [[package]]
 name = "translate-patcher"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "crossterm",
@@ -689,7 +689,7 @@ dependencies = [
 
 [[package]]
 name = "translate-patcher-core"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "serde",
