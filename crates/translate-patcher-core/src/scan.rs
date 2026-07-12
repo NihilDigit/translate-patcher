@@ -2,6 +2,10 @@ use std::path::{Path, PathBuf};
 
 use walkdir::WalkDir;
 
+use crate::mtool::TranslationMap;
+
+const JSON_AUTO_DETECT_LIMIT: usize = 5;
+
 #[derive(Debug, Clone)]
 pub struct ScanResult {
     pub scan_root: PathBuf,
@@ -73,7 +77,49 @@ fn prefer_asar(cwd: &Path, candidates: &[PathBuf]) -> Option<PathBuf> {
 fn prefer_json(cwd: &Path, candidates: &[PathBuf]) -> Option<PathBuf> {
     candidates
         .iter()
-        .find(|path| path.parent() == Some(cwd))
-        .or_else(|| candidates.first())
+        .filter(|path| path.parent() == Some(cwd))
+        .chain(candidates.iter().filter(|path| path.parent() != Some(cwd)))
+        .take(JSON_AUTO_DETECT_LIMIT)
+        .find(|path| {
+            TranslationMap::from_path(path).is_ok_and(|translations| !translations.is_empty())
+        })
         .cloned()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use tempfile::tempdir;
+
+    use super::{prefer_json, JSON_AUTO_DETECT_LIMIT};
+
+    #[test]
+    fn skips_non_translation_json_when_auto_selecting() {
+        let temp = tempdir().unwrap();
+        let runtime_config = temp.path().join("vk_swiftshader_icd.json");
+        let translations = temp.path().join("translations.json");
+        fs::write(&runtime_config, r#"{"ICD":{"library_path":"vulkan.dll"}}"#).unwrap();
+        fs::write(&translations, r#"{"こんにちは":"你好"}"#).unwrap();
+
+        let candidates = vec![runtime_config, translations.clone()];
+
+        assert_eq!(prefer_json(temp.path(), &candidates), Some(translations));
+    }
+
+    #[test]
+    fn tries_at_most_five_json_candidates() {
+        let temp = tempdir().unwrap();
+        let mut candidates = Vec::new();
+        for index in 0..JSON_AUTO_DETECT_LIMIT {
+            let path = temp.path().join(format!("{index}.json"));
+            fs::write(&path, r#"{"config":{"enabled":true}}"#).unwrap();
+            candidates.push(path);
+        }
+        let translations = temp.path().join("translations.json");
+        fs::write(&translations, r#"{"こんにちは":"你好"}"#).unwrap();
+        candidates.push(translations);
+
+        assert_eq!(prefer_json(temp.path(), &candidates), None);
+    }
 }
